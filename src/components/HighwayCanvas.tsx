@@ -39,7 +39,7 @@ interface Props {
   /** 노래 시각(ms). 시작 전이면 null → 미리보기 애니메이션 */
   getSongMs: () => number | null
   /** 지금까지의 판정 결과 (새로 늘어날 때마다 효과를 터뜨림) */
-  results: readonly MoveResult[]
+  results: readonly Pick<MoveResult, 'judgement'>[]
 }
 
 /** 같은 입력 → 같은 값의 간단한 의사 난수 (파티클 모양 고정) */

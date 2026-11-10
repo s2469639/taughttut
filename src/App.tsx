@@ -1,12 +1,16 @@
 import { useState } from 'react'
+import Freestyle from './pages/Freestyle'
 import Perform from './pages/Perform'
 import Practice from './pages/Practice'
 
-type Mode = 'learn' | 'perform'
+type Mode = 'learn' | 'perform' | 'freestyle'
 
-// LEARN(레슨) / PERFORM(리듬 챌린지) 전환. 화면을 바꾸면 카메라는 자동으로 꺼집니다.
+// LEARN(레슨) / PERFORM(가이드 리듬 챌린지) / FREESTYLE(자유 동작 + 원칙 채점) 전환. 화면을 바꾸면 카메라는 자동으로 꺼집니다.
 export default function App() {
-  const [mode, setMode] = useState<Mode>(() => (new URLSearchParams(location.search).get('mode') === 'perform' ? 'perform' : 'learn'))
+  const [mode, setMode] = useState<Mode>(() => {
+    const m = new URLSearchParams(location.search).get('mode')
+    return m === 'perform' || m === 'freestyle' ? m : 'learn'
+  })
 
   const tab = (m: Mode, label: string) => (
     <button
@@ -29,8 +33,9 @@ export default function App() {
       <nav className="mx-auto flex max-w-6xl items-center gap-2 px-4 pt-4" aria-label="모드 선택">
         {tab('learn', 'LEARN')}
         {tab('perform', 'PERFORM')}
+        {tab('freestyle', 'FREESTYLE')}
       </nav>
-      {mode === 'learn' ? <Practice /> : <Perform />}
+      {mode === 'learn' ? <Practice /> : mode === 'perform' ? <Perform /> : <Freestyle />}
     </>
   )
 }

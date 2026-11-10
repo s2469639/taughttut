@@ -57,6 +57,13 @@ export function judge(quality: number, offsetMs: number | null, timingScale = 1)
   return 'miss'
 }
 
+/** 판정과 이전 콤보로 받는 점수 (콤보 보너스 포함). 가이드 챌린지와 프리스타일이 함께 씁니다 */
+export function pointsFor(judgement: Judgement, comboBefore: number): number {
+  const J = RHYTHM_JUDGE
+  if (judgement === 'miss') return 0
+  return Math.round(J.points[judgement] * (1 + J.comboBonusStep * Math.min(comboBefore, J.comboBonusMax)))
+}
+
 /** 포즈 중심 동작은 목표 시각 앞뒤로 이 만큼(ms) 살펴봄 */
 const POSE_WINDOW_MS = 400
 /** 동작형은 시작보다 이 만큼 먼저 프레임을 모음 */
@@ -228,10 +235,8 @@ export class ChallengeRunner {
       ? judge(evaluation.quality, evaluation.offsetMs, ev.move.timingScale)
       : 'miss'
 
-    const J = RHYTHM_JUDGE
     const s = this._state
-    const base = J.points[judgement]
-    const points = judgement === 'miss' ? 0 : Math.round(base * (1 + J.comboBonusStep * Math.min(s.combo, J.comboBonusMax)))
+    const points = pointsFor(judgement, s.combo)
     const combo = judgement === 'miss' ? 0 : s.combo + 1
 
     const result: MoveResult = {

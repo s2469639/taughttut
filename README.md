@@ -21,6 +21,7 @@ npm run build      # 타입 검사 + 빌드
 - Perfect / Good / Adjust 피드백과 교정 안내, 목표 자세 미리보기, 디버그 모드
 - 네오펑크 테마
 - **리듬 챌린지 FIRST TUT FLOW** (상단 PERFORM 탭): 직접 합성한 100BPM 비트, 8카운트 × 4회, 동작별 평가, 점수·콤보, 결과 화면, 최고 점수 저장
+- **FREESTYLE** (상단 FREESTYLE 탭): 정해진 자세 없이, 텃팅의 원칙(직각, 딱 멈추기, 곧은 이동)으로 채점
 
 아직 없음: 영상 녹화·SNS 공유·결과 카드, 학습 진도 저장.
 
@@ -70,6 +71,39 @@ npm run build      # 타입 검사 + 빌드
 텃팅 경험자가 같은 비트에 맞춰 여러 번 녹화한 데이터로 동작별 기준값(이동 거리, 각도, 순서, 박자 오차)을 교정하는 것이 목표입니다.
 
 > 테스트의 가상 연기자는 시범 키프레임을 보간한 입력이라 **로직의 자기 일관성만** 확인합니다. 실제 사람 검증이 아닙니다.
+
+## FREESTYLE — 자세는 자유, 원칙으로 채점 (FREESTYLE 탭)
+
+텃팅은 정해진 몇 가지 자세로 딱딱 나뉘지 않으므로, 템플릿과 비교하지 않고 **움직이다가 박자에 맞춰 딱 멈추는 순간(히트)** 을 찾아 평가합니다.
+
+> ⚠️ **모든 기준값은 임시입니다** (`src/data/freestyle.ts`). 실제 사람 데이터로 조율한 적이 없습니다.
+
+| 원칙 | 측정 | 비중 |
+|---|---|---|
+| 직각·직선 | 멈춘 순간 윗팔·아랫팔이 수평/수직에 가까운 정도 (어떤 모양이든 상관없음, ±20° 이내 만점) | 55% |
+| 딱 멈추기 | 속도가 정점의 절반 아래로 떨어진 뒤 멈추기까지 걸린 시간 (100ms 이내 만점, 300ms 이상 0점) | 30% |
+| 곧은 이동 (실험적) | 손목 이동 경로 중 수평·수직으로 움직인 길이의 비율. 호를 그리는 회전을 깎을 수 있어 비중을 작게 | 15% |
+| 박자 | 멈춘 시각과 가장 가까운 카운트의 차이. 가이드 챌린지와 **같은 판정(Perfect/Good/Miss)·점수·콤보 함수**를 씀 | 별도 판정 |
+
+- 히트 조건: 손목 속도가 1.2(어깨 너비/초) 이상으로 움직이다가, 0.4 이하로 80ms 이상 멈추고, 손목이 0.3 이상 이동. 속도는 2프레임 간격으로 재서 떨림을 줄이고, 멈춘 시각은 지연을 보정합니다.
+  20~60fps에서 박자 오차가 실제와 일치하고, 15fps에서는 한 프레임(약 33ms) 이내입니다 (가상 입력 테스트).
+- 팔을 내리고 있는 쪽(손목이 가슴 아래)은 "쓰는 팔"에서 제외합니다. 내린 팔은 수직이라 직각성을 공짜로 받기 때문입니다. 쓰는 팔이 없으면 히트로 치지 않습니다.
+- 안무 구간(32카운트) 밖의 멈춤과, 멈추지 않는 4초 넘는 움직임은 점수를 주지 않습니다. 박자와 반 박자 사이의 히트는 아직 인정하지 않습니다.
+- **인식 속도가 12fps 미만이면 화면에 경고**를 띄웁니다 (멈춤 감지가 부정확해짐).
+
+### 가림에 대한 부분 대책
+
+AI 생성 영상으로 확인한 결과, 손이 얼굴을 가리거나 팔이 교차해도 MediaPipe의 관절 신뢰도(visibility)는 거의 1.0이었습니다.
+그래서 **팔 길이(윗팔·아랫팔)가 최근 중앙값의 0.6~1.6배를 벗어난 프레임은 사용하지 않습니다** (`BoneGate`).
+해당 구간에서는 진행 중인 움직임 기록도 끊습니다. 완벽한 가림 감지가 아니며, 팔 길이가 비슷하게 추측되면 걸러내지 못합니다.
+대신 가려진 구간에서 일어난 진짜 히트도 놓칩니다.
+
+### 점검 결과 (실제 사람 검증이 아님)
+
+- 가상 손목 움직임으로 시나리오 테스트(박자에 맞춘 멈춤, 어긋남, 서서히 멈춤, 쉬는 팔, 추적 끊김 등).
+- 받은 AI 생성 영상(10초, 24fps)을 돌려 보면 속도 곡선에서 움직임·멈춤이 구분되고 5번의 히트가 감지됨.
+  팔이 얼굴 앞을 지나는 구간(약 5.2~5.5초)은 팔 길이 검사가 걸러서 히트로 잡히지 않음.
+  이 영상은 박자가 맞춰진 영상이 아니라 박자 판정은 점검하지 못했고, 실제 사람 동작과 같은지는 **확인 필요**입니다.
 
 ## 레슨과 포즈 — ⚠️ 모두 "임시 테스트 포즈"
 
@@ -135,12 +169,13 @@ Lesson 03은 지금은 박자 없이 "순서대로 도달 + 단계별 걸린 시
 
 ```
 src/
-├── components/  CameraView, FeedbackPanel, DebugPanel, PoseGuide, ArmFigure, BeatTimeline, MoveStage, ResultPanel, HighwayCanvas
-├── pages/       Practice (LEARN: 레슨 선택 + 카메라 + 피드백), Perform (PERFORM: 리듬 챌린지)
+├── components/  CameraView, FeedbackPanel, DebugPanel, PoseGuide, ArmFigure, BeatTimeline, MoveStage, ResultPanel, HighwayCanvas, FreestyleResult
+├── pages/       Practice (LEARN), Perform (PERFORM: 가이드 리듬 챌린지), Freestyle (FREESTYLE: 원칙 채점)
 ├── services/    mediapipe.ts(모델 로딩), poseEvaluator.ts(측정·판정·유지시간), lessonRunner.ts(레슨 진행),
 │                motionFrame.ts(몸 크기 기준 좌표), moveEvaluators.ts(동작별 평가), challengeRunner.ts(타임라인·점수),
-│                rhythmAudio.ts(비트 합성), demo.ts(시범 그림 보간)
-├── data/        poses.ts(포즈 정의), lessons.ts(레슨 구성), challenge.ts(안무·판정 기준·시범 키프레임)
+│                rhythmAudio.ts(비트 합성), demo.ts(시범 그림 보간),
+│                freestyleRunner.ts(히트 감지·채점), freestyleMetrics.ts(직각성·경로·박자·BoneGate)
+├── data/        poses.ts(포즈 정의), lessons.ts(레슨 구성), challenge.ts(안무·판정 기준·시범 키프레임), freestyle.ts(원칙 기준값)
 ├── hooks/       useCamera, usePoseTracking
 └── utils/       geometry.ts(각도 계산), drawPose.ts(오버레이), highway.ts(레인 원근), armKinematics.ts
 ```
