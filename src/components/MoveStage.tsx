@@ -60,7 +60,7 @@ export default function MoveStage({ def, pos, preview, previewBeat }: Props) {
 
       <details className="mt-3 text-xs text-slate-300">
         <summary className="cursor-pointer font-bold text-neon-violet">이 동작은 무엇을 평가하나요?</summary>
-        <p className="mt-2 font-bold text-neon-mint">측정해요</p>
+        <p className="mt-2 font-bold text-neon-ice">측정해요</p>
         <ul className="ml-4 list-disc">
           {shown.measures.map((m) => (
             <li key={m}>{m}</li>

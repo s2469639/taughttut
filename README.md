@@ -48,6 +48,10 @@ npm run build      # 타입 검사 + 빌드
 - 자세형(Box, Final Hit)은 학습 모드와 같은 상한 규칙: 한 항목이라도 허용 범위를 벗어나면 Perfect 완성도 불가,
   크게 틀리면 Good 완성도 불가 (평균 점수로 가려지지 않게).
 - 점수: Perfect 100 / Good 60 / Miss 0, 콤보 보너스 = 점수 × (1 + 0.1 × min(이전 콤보, 10)). 만점 4,250.
+- **화면 연출(하이웨이):** 웹캠 영상에 보라·핑크 색감과 비네팅을 입히고, 원근 레인 위로 동작이 **타일**이 되어 판정선으로 다가옵니다.
+  길게 이어지는 동작(Slide, Rotate, Wave, Fold)은 롱노트처럼 긴 타일이고 뒤쪽 끝이 판정선에 닿는 순간이 동작 완료 박자,
+  자세(Box, Final Hit)는 짧은 타일이고 가운데가 닿는 순간이 목표 박자입니다. 판정이 나오면 판정선에서 링과 파티클이 터집니다.
+  성공 색은 형광 초록 대신 아이스(`--color-neon-ice`)를 씁니다. (`HighwayCanvas.tsx`, `utils/highway.ts`)
 - 좌표는 몸 크기 기준(원점=어깨 중점, 단위=어깨 너비)으로 정규화해서 체형·카메라 거리 차이를 줄입니다.
 - 카메라 지연 보정 슬라이더(기본 100ms는 **가정값**)로 박자 어긋남을 조정할 수 있습니다.
 - 카메라가 끊기면 챌린지를 중단합니다 (일시정지 기능은 아직 없음).
@@ -131,12 +135,12 @@ Lesson 03은 지금은 박자 없이 "순서대로 도달 + 단계별 걸린 시
 
 ```
 src/
-├── components/  CameraView, FeedbackPanel, DebugPanel, PoseGuide, ArmFigure, BeatTimeline, MoveStage, ResultPanel
+├── components/  CameraView, FeedbackPanel, DebugPanel, PoseGuide, ArmFigure, BeatTimeline, MoveStage, ResultPanel, HighwayCanvas
 ├── pages/       Practice (LEARN: 레슨 선택 + 카메라 + 피드백), Perform (PERFORM: 리듬 챌린지)
 ├── services/    mediapipe.ts(모델 로딩), poseEvaluator.ts(측정·판정·유지시간), lessonRunner.ts(레슨 진행),
 │                motionFrame.ts(몸 크기 기준 좌표), moveEvaluators.ts(동작별 평가), challengeRunner.ts(타임라인·점수),
 │                rhythmAudio.ts(비트 합성), demo.ts(시범 그림 보간)
 ├── data/        poses.ts(포즈 정의), lessons.ts(레슨 구성), challenge.ts(안무·판정 기준·시범 키프레임)
 ├── hooks/       useCamera, usePoseTracking
-└── utils/       geometry.ts(각도 계산), drawPose.ts(오버레이)
+└── utils/       geometry.ts(각도 계산), drawPose.ts(오버레이), highway.ts(레인 원근), armKinematics.ts
 ```

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import BeatTimeline from '../components/BeatTimeline'
 import CameraView from '../components/CameraView'
+import HighwayCanvas from '../components/HighwayCanvas'
 import MoveStage from '../components/MoveStage'
 import ResultPanel from '../components/ResultPanel'
 import { FIRST_TUT_FLOW } from '../data/challenge'
@@ -51,7 +52,7 @@ function useTicker(): number {
 }
 
 const JUDGE_STYLE: Record<Judgement, string> = {
-  perfect: 'text-neon-mint glow-mint',
+  perfect: 'text-neon-ice glow-ice',
   good: 'text-neon-yellow',
   miss: 'text-neon-pink glow-pink',
 }
@@ -175,8 +176,24 @@ export default function Perform() {
                 canvasRef={canvasRef}
                 active={cameraReady}
                 overlayMessage={overlay}
-                ringClass={popup?.judgement === 'perfect' ? 'ring-glow-mint' : popup?.judgement === 'good' ? 'ring-glow-yellow' : 'ring-glow-idle'}
+                ringClass={popup?.judgement === 'perfect' ? 'ring-glow-ice' : popup?.judgement === 'good' ? 'ring-glow-yellow' : 'ring-glow-idle'}
               />
+
+              {/* 네온 하이웨이: 색감 입히기 + 비네팅 + 레인·타일 (웹캠 위에 겹침) */}
+              <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background:
+                      'linear-gradient(180deg, rgba(90,20,170,0.34) 0%, rgba(255,42,109,0.12) 55%, rgba(20,4,40,0.5) 100%)',
+                  }}
+                />
+                <div
+                  className="absolute inset-0"
+                  style={{ background: 'radial-gradient(ellipse at 50% 45%, transparent 45%, rgba(10,2,26,0.7) 100%)' }}
+                />
+                <HighwayCanvas def={def} getSongMs={ch.getSongMs} results={snapshot.state.results} />
+              </div>
 
               {/* HUD */}
               {playing && (
@@ -200,7 +217,7 @@ export default function Perform() {
                   )}
 
                   {popup && (
-                    <div className="absolute inset-x-0 top-1/3 text-center">
+                    <div className="absolute inset-x-0 top-[13%] text-center">
                       <p className={`text-5xl font-black uppercase italic ${JUDGE_STYLE[popup.judgement]}`}>{popup.judgement}</p>
                       <p className="mt-1 text-sm font-bold text-white">
                         {popup.moveName}
@@ -301,7 +318,7 @@ export default function Perform() {
             <div className="neon-card p-4 text-xs text-slate-300">
               <p className="font-bold uppercase tracking-widest text-neon-violet">판정 방식</p>
               <ul className="mt-2 space-y-1">
-                <li><b className="text-neon-mint">PERFECT</b> — 동작이 정확하고 박자가 맞음 (100점)</li>
+                <li><b className="text-neon-ice">PERFECT</b> — 동작이 정확하고 박자가 맞음 (100점)</li>
                 <li><b className="text-neon-yellow">GOOD</b> — 조금 어긋남 (60점)</li>
                 <li><b className="text-neon-pink">MISS</b> — 크게 어긋나거나 인식 실패 (0점, 콤보 끊김)</li>
               </ul>

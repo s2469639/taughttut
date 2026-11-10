@@ -12,7 +12,7 @@ interface Props {
 
 const RANK_COLOR: Record<string, string> = {
   S: 'text-neon-yellow glow-pink',
-  A: 'text-neon-mint glow-mint',
+  A: 'text-neon-ice glow-ice',
   B: 'text-neon-cyan glow-cyan',
   C: 'text-neon-violet',
 }
@@ -50,7 +50,7 @@ export default function ResultPanel({ def, state, bestBefore, debug, onRetry, on
         </p>
         <div className="text-sm text-slate-200">
           <p>최대 콤보 <b className="text-neon-cyan">{state.maxCombo}</b></p>
-          <p className="text-neon-mint">PERFECT {state.counts.perfect}</p>
+          <p className="text-neon-ice">PERFECT {state.counts.perfect}</p>
           <p className="text-neon-yellow">GOOD {state.counts.good}</p>
           <p className="text-neon-pink">MISS {state.counts.miss}</p>
         </div>
@@ -99,7 +99,7 @@ export default function ResultPanel({ def, state, bestBefore, debug, onRetry, on
                   </td>
                   <td className="py-2 pr-3 text-slate-300">{KIND_LABEL[m.kind]}</td>
                   <td className="py-2 pr-3 tabular-nums">
-                    <span className="text-neon-mint">{c('perfect')}</span> / <span className="text-neon-yellow">{c('good')}</span> /{' '}
+                    <span className="text-neon-ice">{c('perfect')}</span> / <span className="text-neon-yellow">{c('good')}</span> /{' '}
                     <span className="text-neon-pink">{c('miss')}</span>
                   </td>
                   <td className="py-2 pr-3 tabular-nums">{q.toFixed(0)}</td>

@@ -2,7 +2,7 @@ import type { ChallengeDef } from '../data/challenge'
 import type { Judgement, SongPosition } from '../services/challengeRunner'
 
 const JUDGE_BORDER: Record<Judgement, string> = {
-  perfect: 'border-neon-mint text-neon-mint',
+  perfect: 'border-neon-ice text-neon-ice',
   good: 'border-neon-yellow text-neon-yellow',
   miss: 'border-neon-pink text-neon-pink',
 }

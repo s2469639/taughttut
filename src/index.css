@@ -8,6 +8,7 @@
   --color-neon-pink: #ff2a6d;
   --color-neon-cyan: #05d9e8;
   --color-neon-mint: #05ffa1;
+  --color-neon-ice: #9bf6ff; /* 챌린지 화면의 성공 색 (연한 하늘색 흰빛) */
   --color-neon-violet: #b967ff;
   --color-neon-yellow: #f9f002;
   --color-neon-orange: #ff9f1c;
@@ -74,7 +75,9 @@ body::after {
 .glow-cyan { text-shadow: 0 0 10px rgba(5, 217, 232, 0.8); }
 .glow-mint { text-shadow: 0 0 10px rgba(5, 255, 161, 0.8); }
 .glow-pink { text-shadow: 0 0 10px rgba(255, 42, 109, 0.8); }
+.glow-ice { text-shadow: 0 0 10px rgba(155, 246, 255, 0.9), 0 0 22px rgba(255, 42, 109, 0.45); }
 
 .ring-glow-mint { box-shadow: 0 0 0 3px var(--color-neon-mint), 0 0 32px rgba(5, 255, 161, 0.55); }
+.ring-glow-ice { box-shadow: 0 0 0 3px var(--color-neon-ice), 0 0 34px rgba(155, 246, 255, 0.55), 0 0 60px rgba(255, 42, 109, 0.3); }
 .ring-glow-yellow { box-shadow: 0 0 0 3px var(--color-neon-yellow), 0 0 28px rgba(249, 240, 2, 0.4); }
 .ring-glow-idle { box-shadow: 0 0 0 2px rgba(185, 103, 255, 0.55), 0 0 28px rgba(185, 103, 255, 0.25); }
