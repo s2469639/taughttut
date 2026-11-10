@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #7c3aed;
+  --color-brand-soft: #ede9fe;
+  --color-lavender: #f5f3ff;
+  --color-success: #2dd4bf;
+  --color-adjust: #f59e0b;
+  --font-sans: "Pretendard", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--color-lavender);
+  color: #1e1b4b;
+}
