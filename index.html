@@ -3,6 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 개인정보: 이 앱에서 외부 서버로 나가는 네트워크 요청을 막습니다.
+         (MediaPipe 라이브러리가 종료될 때 구글 서버로 보내는 작은 사용 로그 포함. 개발 서버의 HMR용 localhost만 예외) -->
+    <meta http-equiv="Content-Security-Policy" content="connect-src 'self' blob: data: ws://localhost:* http://localhost:*" />
     <title>TAUGHT TUT</title>
   </head>
   <body>
