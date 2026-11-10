@@ -1,7 +1,7 @@
 // MediaPipe의 "관절 인식"과 텃팅 "자세 정답 판정"을 분리한 로직입니다.
 // 입력은 좌표뿐이라 카메라 없이도 테스트할 수 있습니다.
 
-import { JUDGE, type PoseDefinition } from '../data/poses'
+import { JUDGE, type ArmSide, type PoseDefinition } from '../data/poses'
 import {
   angleAtDeg,
   angleDiffDeg,
@@ -32,6 +32,10 @@ export interface ArmMeasure {
   upperArmDirectionDeg: number
   /** 팔꿈치→손목 방향 */
   forearmDirectionDeg: number
+  /** 손목의 화면 y 위치(픽셀, 아래로 증가) — 좌우 균형 비교용 */
+  wristYPx: number
+  /** 아랫팔 길이(픽셀) — 비율 계산용 */
+  forearmLenPx: number
 }
 
 export type TrackingStatus = 'ok' | 'no-person' | 'out-of-frame' | 'unstable'
@@ -43,9 +47,9 @@ export interface TrackingReport {
 
 export interface ArmsMeasurement {
   tracking: TrackingReport
-  /** 오른팔 (판정 대상). tracking.status 가 ok 일 때만 있음 */
+  /** 오른팔. 판정에 필요한 팔이 추적 실패면 null (필요 없는 팔은 좌표만 있으면 항상 계산) */
   right: ArmMeasure | null
-  /** 왼팔 (디버그 표시용, 판정에 사용하지 않음). 좌표가 있으면 항상 계산 */
+  /** 왼팔. 위와 동일 */
   left: ArmMeasure | null
 }
 
@@ -78,17 +82,25 @@ function measureArm(
   const upper = directionDeg(s, e)
   const fore = directionDeg(e, w)
   if (elbowAngle === null || upper === null || fore === null) return null
-  return { elbowAngleDeg: elbowAngle, upperArmDirectionDeg: upper, forearmDirectionDeg: fore }
+  return {
+    elbowAngleDeg: elbowAngle,
+    upperArmDirectionDeg: upper,
+    forearmDirectionDeg: fore,
+    wristYPx: w.y,
+    forearmLenPx: Math.hypot(w.x - e.x, w.y - e.y),
+  }
 }
 
 /**
  * 33개 랜드마크에서 양팔을 측정합니다.
  * @param width,height 영상 픽셀 크기 (각도 왜곡 방지용 가로세로 비율 보정)
+ * @param required 이번 포즈 판정에 필요한 팔. 이 팔들이 화면 밖이거나 신뢰도가 낮으면 추적 실패로 봅니다.
  */
 export function measureArms(
   landmarks: readonly RawLandmark[] | undefined,
   width: number,
   height: number,
+  required: readonly ArmSide[] = ['right'],
 ): ArmsMeasurement {
   const fail = (status: TrackingStatus): ArmsMeasurement => ({
     tracking: { status, message: TRACKING_MESSAGES[status] },
@@ -98,83 +110,164 @@ export function measureArms(
 
   if (!landmarks || landmarks.length < 17 || width <= 0 || height <= 0) return fail('no-person')
 
-  const rs = landmarks[POSE_INDEX.rightShoulder]
-  const re = landmarks[POSE_INDEX.rightElbow]
-  const rw = landmarks[POSE_INDEX.rightWrist]
-  const ls = landmarks[POSE_INDEX.leftShoulder]
-  const le = landmarks[POSE_INDEX.leftElbow]
-  const lw = landmarks[POSE_INDEX.leftWrist]
+  const joints: Record<ArmSide, [RawLandmark, RawLandmark, RawLandmark]> = {
+    right: [landmarks[POSE_INDEX.rightShoulder], landmarks[POSE_INDEX.rightElbow], landmarks[POSE_INDEX.rightWrist]],
+    left: [landmarks[POSE_INDEX.leftShoulder], landmarks[POSE_INDEX.leftElbow], landmarks[POSE_INDEX.leftWrist]],
+  }
 
-  const left = measureArm(ls, le, lw, width, height)
-  const rightJoints = [rs, re, rw]
-
+  const requiredJoints = required.flatMap((side) => joints[side])
   let status: TrackingStatus = 'ok'
-  if (!rightJoints.every(inFrame)) {
+  if (!requiredJoints.every(inFrame)) {
     status = 'out-of-frame'
-  } else if (rightJoints.some((j) => (j.visibility ?? 1) < JUDGE.minVisibility)) {
+  } else if (requiredJoints.some((j) => (j.visibility ?? 1) < JUDGE.minVisibility)) {
     status = 'unstable'
   }
 
-  if (status !== 'ok') {
-    return { tracking: { status, message: TRACKING_MESSAGES[status] }, right: null, left }
+  const measure = (side: ArmSide): ArmMeasure | null => {
+    // 판정에 필요한 팔이 추적 실패면 값을 주지 않음 (잘못된 값으로 판정 방지)
+    if (status !== 'ok' && required.includes(side)) return null
+    return measureArm(...joints[side], width, height)
   }
-  const right = measureArm(rs, re, rw, width, height)
-  if (!right) return fail('unstable')
-  return { tracking: { status: 'ok', message: TRACKING_MESSAGES.ok }, right, left }
+  const right = measure('right')
+  const left = measure('left')
+
+  if (status === 'ok' && required.some((side) => (side === 'right' ? right : left) === null)) {
+    return { tracking: { status: 'unstable', message: TRACKING_MESSAGES.unstable }, right, left }
+  }
+  return { tracking: { status, message: TRACKING_MESSAGES[status] }, right, left }
 }
 
 // ───────────────────────── 자세 판정 ─────────────────────────
 
 export type Verdict = 'perfect' | 'good' | 'adjust'
 
+export interface ArmErrors {
+  elbowAngleDeg: number
+  upperArmDirectionDeg: number
+  forearmDirectionDeg: number
+}
+
 export interface PoseEvaluation {
-  /** 0~100 */
+  /** 일치도(유사도) 0~100 */
   similarity: number
   verdict: Verdict
-  /** 모든 항목이 허용 오차 안이면 true (유지 시간 측정 대상) */
+  /** 모든 항목이 허용 범위 안이면 true (유지 시간 측정 대상) */
   inTolerance: boolean
-  /** 부호 있는 오차 (측정값 - 목표값) */
-  errors: { elbowAngleDeg: number; upperArmDirectionDeg: number; forearmDirectionDeg: number }
+  /** 팔별 부호 있는 오차 (측정값 - 목표값). 평가하는 팔만 있음 */
+  errors: Partial<Record<ArmSide, ArmErrors>>
+  /** 좌우 균형 (양팔 포즈만) */
+  balance?: { elbowDiffDeg: number; wristHeightDiffRatio: number }
   /** 사용자에게 보여줄 교정 안내 */
   hint: string
 }
 
-/** 허용 오차 이내면 1점, 허용 오차의 2배에서 0점이 되도록 선형 감소 */
+/** 허용 범위 이내면 1점, 허용 범위의 2배에서 0점이 되도록 선형 감소 */
 function componentScore(absErr: number, tol: number): number {
   if (absErr <= tol) return 1
   return Math.max(0, 1 - (absErr - tol) / tol)
 }
 
-export function evaluatePose(def: PoseDefinition, m: ArmMeasure): PoseEvaluation {
-  const { target, tolerance, weights } = def
-  const errors = {
-    elbowAngleDeg: m.elbowAngleDeg - target.elbowAngleDeg,
-    upperArmDirectionDeg: angleDiffDeg(m.upperArmDirectionDeg, target.upperArmDirectionDeg),
-    forearmDirectionDeg: angleDiffDeg(m.forearmDirectionDeg, target.forearmDirectionDeg),
+const SIDE_LABEL: Record<ArmSide, string> = { right: '오른팔', left: '왼팔' }
+
+/** 허용 범위 대비 오차 비율 하나 (안내 문구 선택용) */
+interface Issue {
+  ratio: number
+  text: string
+}
+
+/**
+ * 목표 포즈와 측정값을 비교합니다. 평가해야 하는 팔의 측정값이 없으면 null.
+ * 팔꿈치 각도만으로 판정하지 않고 윗팔·아랫팔 방향, (양팔이면) 좌우 균형까지 함께 봅니다.
+ */
+export function evaluatePose(
+  def: PoseDefinition,
+  arms: { right: ArmMeasure | null; left: ArmMeasure | null },
+): PoseEvaluation | null {
+  const { tolerance, weights } = def
+  const sides = (Object.keys(def.arms) as ArmSide[]).filter((side) => def.arms[side])
+  if (sides.length === 0) return null
+
+  const errors: Partial<Record<ArmSide, ArmErrors>> = {}
+  const armScores: number[] = []
+  const issues: Issue[] = []
+  let inTolerance = true
+  let grossMiss = false
+  const prefix = (side: ArmSide) => (sides.length > 1 ? `${SIDE_LABEL[side]} ` : '')
+
+  for (const side of sides) {
+    const m = arms[side]
+    const t = def.arms[side]!
+    if (!m) return null
+
+    const e: ArmErrors = {
+      elbowAngleDeg: m.elbowAngleDeg - t.elbowAngleDeg,
+      upperArmDirectionDeg: angleDiffDeg(m.upperArmDirectionDeg, t.upperArmDirectionDeg),
+      forearmDirectionDeg: angleDiffDeg(m.forearmDirectionDeg, t.forearmDirectionDeg),
+    }
+    errors[side] = e
+    const abs = {
+      elbow: Math.abs(e.elbowAngleDeg),
+      upper: Math.abs(e.upperArmDirectionDeg),
+      fore: Math.abs(e.forearmDirectionDeg),
+    }
+
+    armScores.push(
+      weights.elbowAngle * componentScore(abs.elbow, tolerance.elbowAngleDeg) +
+        weights.upperArmDirection * componentScore(abs.upper, tolerance.upperArmDirectionDeg) +
+        weights.forearmDirection * componentScore(abs.fore, tolerance.forearmDirectionDeg),
+    )
+
+    if (abs.elbow > tolerance.elbowAngleDeg || abs.upper > tolerance.upperArmDirectionDeg || abs.fore > tolerance.forearmDirectionDeg) {
+      inTolerance = false
+    }
+    // 한 항목이라도 허용 범위의 2배를 넘으면 "다른 동작"으로 보고 Good이 될 수 없음
+    // (예: 팔꿈치는 90°지만 아랫팔이 아래를 향한 자세)
+    if (abs.elbow > tolerance.elbowAngleDeg * 2 || abs.upper > tolerance.upperArmDirectionDeg * 2 || abs.fore > tolerance.forearmDirectionDeg * 2) {
+      grossMiss = true
+    }
+
+    issues.push(
+      {
+        ratio: abs.elbow / tolerance.elbowAngleDeg,
+        text: `${prefix(side)}${e.elbowAngleDeg > 0 ? '팔꿈치를 조금 더 굽혀 보세요' : '팔꿈치를 조금 더 펴 보세요'}`,
+      },
+      {
+        ratio: abs.upper / tolerance.upperArmDirectionDeg,
+        // 방향 각도는 "바깥쪽 수평"이 기준. 팔마다 바깥 방향이 달라 부호 해석이 다름
+        text: `${prefix(side)}${
+          (side === 'right' ? e.upperArmDirectionDeg > 0 : e.upperArmDirectionDeg < 0)
+            ? '팔꿈치를 어깨 높이까지 내려 주세요'
+            : '팔꿈치를 어깨 높이까지 올려 주세요'
+        }`,
+      },
+      {
+        ratio: abs.fore / tolerance.forearmDirectionDeg,
+        text: `${prefix(side)}아랫팔(팔꿈치~손목)을 위로 곧게 세워 주세요`,
+      },
+    )
   }
-  const abs = {
-    elbow: Math.abs(errors.elbowAngleDeg),
-    upper: Math.abs(errors.upperArmDirectionDeg),
-    fore: Math.abs(errors.forearmDirectionDeg),
+
+  // 좌우 균형 (양팔 포즈)
+  let balanceScore = 1
+  let balance: PoseEvaluation['balance']
+  if (def.balance && arms.right && arms.left && sides.length === 2) {
+    const b = def.balance
+    const elbowDiff = Math.abs(arms.right.elbowAngleDeg - arms.left.elbowAngleDeg)
+    const avgFore = (arms.right.forearmLenPx + arms.left.forearmLenPx) / 2
+    const wristRatio = avgFore > 0 ? Math.abs(arms.right.wristYPx - arms.left.wristYPx) / avgFore : 0
+    balance = { elbowDiffDeg: elbowDiff, wristHeightDiffRatio: wristRatio }
+    balanceScore = (componentScore(elbowDiff, b.elbowDiffTolDeg) + componentScore(wristRatio, b.wristHeightTolRatio)) / 2
+    if (elbowDiff > b.elbowDiffTolDeg || wristRatio > b.wristHeightTolRatio) inTolerance = false
+    if (elbowDiff > b.elbowDiffTolDeg * 2 || wristRatio > b.wristHeightTolRatio * 2) grossMiss = true
+    issues.push(
+      { ratio: elbowDiff / b.elbowDiffTolDeg, text: '양쪽 팔꿈치 각도를 비슷하게 맞춰 주세요' },
+      { ratio: wristRatio / b.wristHeightTolRatio, text: '양쪽 손 높이를 맞춰 주세요' },
+    )
   }
 
-  const similarity =
-    100 *
-    (weights.elbowAngle * componentScore(abs.elbow, tolerance.elbowAngleDeg) +
-      weights.upperArmDirection * componentScore(abs.upper, tolerance.upperArmDirectionDeg) +
-      weights.forearmDirection * componentScore(abs.fore, tolerance.forearmDirectionDeg))
-
-  const inTolerance =
-    abs.elbow <= tolerance.elbowAngleDeg &&
-    abs.upper <= tolerance.upperArmDirectionDeg &&
-    abs.fore <= tolerance.forearmDirectionDeg
-
-  // 한 항목이라도 허용 오차의 2배를 넘으면 "다른 동작"으로 보고 Good이 될 수 없음
-  // (예: 팔꿈치는 90°지만 전완이 아래를 향한 자세)
-  const grossMiss =
-    abs.elbow > tolerance.elbowAngleDeg * 2 ||
-    abs.upper > tolerance.upperArmDirectionDeg * 2 ||
-    abs.fore > tolerance.forearmDirectionDeg * 2
+  const balanceWeight = balance ? def.balance!.weight : 0
+  const armsAvg = armScores.reduce((a, b) => a + b, 0) / armScores.length
+  const similarity = 100 * ((1 - balanceWeight) * armsAvg + balanceWeight * balanceScore)
 
   const verdict: Verdict = inTolerance
     ? 'perfect'
@@ -182,36 +275,10 @@ export function evaluatePose(def: PoseDefinition, m: ArmMeasure): PoseEvaluation
       ? 'good'
       : 'adjust'
 
-  return { similarity, verdict, inTolerance, errors, hint: buildHint(errors, tolerance) }
-}
+  const worst = issues.reduce((a, b) => (b.ratio > a.ratio ? b : a))
+  const hint = worst.ratio <= 1 ? '좋아요! 그대로 유지하세요' : worst.text
 
-/** 허용 오차 대비 가장 많이 벗어난 항목을 골라 안내 문장을 만듭니다. */
-function buildHint(
-  e: PoseEvaluation['errors'],
-  tol: PoseDefinition['tolerance'],
-): string {
-  const ratios = [
-    { key: 'elbow' as const, r: Math.abs(e.elbowAngleDeg) / tol.elbowAngleDeg },
-    { key: 'upper' as const, r: Math.abs(e.upperArmDirectionDeg) / tol.upperArmDirectionDeg },
-    { key: 'fore' as const, r: Math.abs(e.forearmDirectionDeg) / tol.forearmDirectionDeg },
-  ]
-  const worst = ratios.reduce((a, b) => (b.r > a.r ? b : a))
-  if (worst.r <= 1) return '좋아요! 그대로 유지하세요'
-
-  switch (worst.key) {
-    case 'elbow':
-      return e.elbowAngleDeg > 0 ? '팔꿈치를 조금 더 굽혀 보세요' : '팔꿈치를 조금 더 펴 보세요'
-    case 'upper':
-      // 방향 각도: 0°=바깥, 양수=위쪽으로 치우침
-      return e.upperArmDirectionDeg > 0
-        ? '팔꿈치를 어깨 높이까지 내려 주세요'
-        : '팔꿈치를 어깨 높이까지 올려 주세요'
-    case 'fore':
-      // 90°=위. 양수=몸 안쪽(왼쪽)으로 기울어짐
-      return e.forearmDirectionDeg > 0
-        ? '손을 바깥쪽으로 세워 전완을 수직으로 맞춰 주세요'
-        : '손을 몸 쪽으로 세워 전완을 수직으로 맞춰 주세요'
-  }
+  return { similarity, verdict, inTolerance, errors, balance, hint }
 }
 
 // ───────────────────────── 유지 시간 측정 ─────────────────────────
@@ -272,4 +339,9 @@ export class HoldTracker {
     this.lastNow = null
     this.untrackedMs = 0
   }
+}
+
+/** 이 포즈를 판정하는 데 필요한 팔 (목표가 있는 팔) */
+export function requiredArms(def: PoseDefinition): ArmSide[] {
+  return (Object.keys(def.arms) as ArmSide[]).filter((side) => def.arms[side])
 }

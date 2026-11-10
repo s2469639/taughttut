@@ -1,16 +1,80 @@
 @import "tailwindcss";
 
+/* ───────── 네오펑크 테마 ─────────
+   어두운 남색 바탕 + 네온 핑크/시안/바이올렛, 격자 바닥, 약한 스캔라인 */
 @theme {
-  --color-brand: #7c3aed;
-  --color-brand-soft: #ede9fe;
-  --color-lavender: #f5f3ff;
-  --color-success: #2dd4bf;
-  --color-adjust: #f59e0b;
+  --color-ink: #0a0615;
+  --color-panel: #140a2a;
+  --color-neon-pink: #ff2a6d;
+  --color-neon-cyan: #05d9e8;
+  --color-neon-mint: #05ffa1;
+  --color-neon-violet: #b967ff;
+  --color-neon-yellow: #f9f002;
+  --color-neon-orange: #ff9f1c;
   --font-sans: "Pretendard", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html {
+  background: var(--color-ink);
 }
 
 body {
   margin: 0;
-  background: var(--color-lavender);
-  color: #1e1b4b;
+  min-height: 100vh;
+  color: #e9e4ff;
+  background:
+    radial-gradient(60rem 40rem at 10% -10%, rgba(255, 42, 109, 0.22), transparent 60%),
+    radial-gradient(60rem 40rem at 100% 110%, rgba(5, 217, 232, 0.2), transparent 60%),
+    radial-gradient(40rem 30rem at 50% 50%, rgba(185, 103, 255, 0.1), transparent 70%),
+    var(--color-ink);
+  background-attachment: fixed;
 }
+
+/* 아래쪽에서 위로 사라지는 네온 격자 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(5, 217, 232, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(185, 103, 255, 0.16) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 70%);
+  mask-image: linear-gradient(to top, #000 0%, transparent 70%);
+}
+
+/* 미세한 스캔라인 */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 3px);
+}
+
+.neon-card {
+  background: rgba(20, 10, 42, 0.78);
+  border: 1px solid rgba(185, 103, 255, 0.4);
+  border-radius: 1rem;
+  box-shadow: 0 0 0 1px rgba(5, 217, 232, 0.06), 0 0 24px rgba(185, 103, 255, 0.14);
+  backdrop-filter: blur(6px);
+}
+
+.neon-title {
+  background: linear-gradient(90deg, var(--color-neon-pink), var(--color-neon-violet) 55%, var(--color-neon-cyan));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 10px rgba(255, 42, 109, 0.45));
+}
+
+.glow-cyan { text-shadow: 0 0 10px rgba(5, 217, 232, 0.8); }
+.glow-mint { text-shadow: 0 0 10px rgba(5, 255, 161, 0.8); }
+.glow-pink { text-shadow: 0 0 10px rgba(255, 42, 109, 0.8); }
+
+.ring-glow-mint { box-shadow: 0 0 0 3px var(--color-neon-mint), 0 0 32px rgba(5, 255, 161, 0.55); }
+.ring-glow-yellow { box-shadow: 0 0 0 3px var(--color-neon-yellow), 0 0 28px rgba(249, 240, 2, 0.4); }
+.ring-glow-idle { box-shadow: 0 0 0 2px rgba(185, 103, 255, 0.55), 0 0 28px rgba(185, 103, 255, 0.25); }
